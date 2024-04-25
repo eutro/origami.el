@@ -273,7 +273,7 @@ header overlay should cover. Result is a cons cell of (begin . end)."
 F applied to the leaf."
   (cdr
    (-reduce-r-from (lambda (node acc)
-                     (destructuring-bind (old-node . new-node) acc
+                     (cl-destructuring-bind (old-node . new-node) acc
                        (cons node (origami-fold-replace-child node old-node new-node))))
                    (let ((leaf (-last-item path))) (cons leaf (funcall f leaf)))
                    (butlast path))))
@@ -472,6 +472,26 @@ was last built."
             (funcall contents)
             origami-fold-root-node)))))
 
+(defun origami-resolve-parser (buffer)
+  "Resolve the origami parser for the given BUFFER.
+
+This will try to use `origami-fold-style' first, then lookup the
+major mode and its parents in `origami-parser-alist', finally it
+will fall back to `origami-default-parser'."
+  (if-let ((fold-style (buffer-local-value 'origami-fold-style buffer)))
+      (if (functionp fold-style)
+          fold-style
+        (alist-get fold-style origami-parser-alist))
+
+    (let ((mode (buffer-local-value 'major-mode buffer)))
+      (catch 'return
+        (while mode
+          (when-let ((parser (alist-get mode origami-parser-alist)))
+            (throw 'return parser))
+          (setq mode (get mode 'derived-mode-parent)))
+
+        origami-default-parser))))
+
 (defun origami-get-parser (buffer)
   (let* ((cached-tree (origami-get-cached-tree buffer))
          (create (lambda (beg end offset children)
@@ -484,11 +504,7 @@ was last built."
                                                 -last-item
                                                 origami-fold-data)
                                             (origami-create-overlay beg end offset buffer)))))))
-    (-when-let (parser-gen (or (cdr (assoc (if (local-variable-p 'origami-fold-style)
-                                               (buffer-local-value 'origami-fold-style buffer)
-                                             (buffer-local-value 'major-mode buffer))
-                                           origami-parser-alist))
-                               'origami-indent-parser))
+    (-when-let (parser-gen (origami-resolve-parser buffer))
       (funcall parser-gen create))))
 
 (defun origami-get-fold-tree (buffer)
@@ -717,6 +733,7 @@ after POINT."
         (origami-fold-preorder-reduce (lambda (state n)
                                         (cons (origami-fold-beg n) state)) nil)
         (->> (-last (lambda (pos) (> pos point))))
+        (or (point-max))
         goto-char)))
 
 (defun origami-forward-fold-same-level (buffer point)

@@ -257,8 +257,38 @@ position in the CONTENT."
     (lisp-interaction-mode . origami-elisp-parser)
     (clojure-mode          . origami-clj-parser)
     (triple-braces         . ,(origami-markers-parser "{{{" "}}}")))
-  "alist mapping major-mode to parser function."
-  :type 'hook
+  "Alist mapping major-mode to parser function.
+
+A parser function takes a CREATE function parameter and must
+return another function which takes a CONTENTS string capturing
+the contents of the current buffer. The latter function should
+return a list of folds built with CREATE.
+
+CREATE must be called as (CREATE BEGINNING END OFFSET CHILDREN)
+to create a fold between BEGINNING and END with the start of the
+foldable overlay being at OFFSET.
+
+See also `origami-default-parser' or `origami-fold-style' for
+alternative ways to set the parser."
+  :type '(alist
+          :key-type (symbol)
+          :value-type (function))
+  :group 'origami)
+
+(defcustom origami-default-parser #'origami-indent-parser
+  "Default parser function to use when none in `origami-parser-alist' match
+the current major mode.")
+
+(defcustom origami-fold-style nil
+  "A parser function, or a key in `origami-parser-alist', to use as
+the parser for the current buffer.
+
+This is intended to be set as a buffer-local variable, since it
+overrides both `origami-parser-alist' and
+`origami-default-parser', which may be what you are looking for."
+  :type `(choice (const :tag "No override" ,nil)
+                 (function :tag "Override" ,#'origami-indent-parser))
+  :local t
   :group 'origami)
 
 (provide 'origami-parsers)
